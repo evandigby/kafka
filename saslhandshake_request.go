@@ -44,6 +44,9 @@ func readSASLHandshakeResponse(r io.Reader) error {
 
 	var arrLen int32
 	err = binary.Read(r, binary.BigEndian, &arrLen)
+	if err != nil {
+		return err
+	}
 	for i := 0; i < int(arrLen); i++ {
 		mechanism, err := readString(r)
 		if err != nil {

@@ -51,6 +51,7 @@ func readMetadataResponse(r io.Reader) error {
 	// Brokers
 	var arrLen int32
 	err = binary.Read(r, binary.BigEndian, &arrLen)
+	fmt.Println("Brokers:", arrLen)
 	for i := 0; i < int(arrLen); i++ {
 		var (
 			nodeID int32

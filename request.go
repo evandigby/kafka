@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/binary"
+	"fmt"
 	"io"
 )
 
@@ -70,12 +71,16 @@ func readResponse(r io.Reader, readCorrelation bool) (int32, []byte, error) {
 	var size int32
 	err := binary.Read(r, binary.BigEndian, &size)
 	if err != nil {
+		fmt.Println("first")
 		return -1, nil, err
 	}
+
+	fmt.Println("SIZE:", size)
 
 	resp := make([]byte, int(size))
 	_, err = io.ReadFull(r, resp)
 	if err != nil {
+		fmt.Println("Second")
 		return -1, nil, err
 	}
 

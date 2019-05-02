@@ -7,39 +7,22 @@ import (
 )
 
 type saslAuthenticateRequest struct {
-	username string
-	password string
+	data []byte
 }
 
 func (r *saslAuthenticateRequest) size() int32 {
-	return int32(len(r.username) + len(r.password) + 2)
+	return int32(len(r.data))
 }
 
 func (r *saslAuthenticateRequest) write(w io.Writer) error {
-	_, err := w.Write([]byte{0})
-	if err != nil {
-		return err
-	}
-
-	_, err = w.Write([]byte(r.username))
-	if err != nil {
-		return err
-	}
-
-	_, err = w.Write([]byte{0})
-	if err != nil {
-		return err
-	}
-
-	_, err = w.Write([]byte(r.password))
+	_, err := w.Write(r.data)
 	return err
 }
 
-func newSASLAuthenticateRequest(userName, password string) *request {
+func newSASLAuthenticateRequest(username, password string) *request {
 	return &request{
 		r: &saslAuthenticateRequest{
-			username: userName,
-			password: password,
+			data: []byte("" + "\x00" + username + "\x00" + password),
 		},
 	}
 }

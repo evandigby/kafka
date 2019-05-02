@@ -4,57 +4,37 @@ import (
 	"bytes"
 	"crypto/tls"
 	"fmt"
+	"os"
+	"time"
 )
 
 func main() {
-	conn, err := tls.Dial("tcp", "", nil)
+	host := os.Getenv("KAFKA_BOOTSTRAP")
+	conn, err := tls.Dial("tcp", host, nil)
 	if err != nil {
 		fmt.Println("Dial Error", err)
 		return
 	}
 
+	conn.SetDeadline(time.Time{})
 	defer conn.Close()
 
 	const clientID = "testClient"
 	const (
 		versionsCID  = 10
 		handshakeCID = 11
-		authCID      = 12
+		metaCID      = 12
+		apiCID       = 13
 	)
 
-	request := newAPIVersionsRequest(versionsCID, clientID)
-
-	err = request.write(conn)
-	if err != nil {
-		fmt.Println("err writing version request:", err)
-		return
-	}
-
-	cid, resp, err := readResponse(conn, true)
-	if err != nil {
-		fmt.Println("err reading response:", err)
-		return
-	}
-
-	if cid != versionsCID {
-		fmt.Println("uncorrelated response:", cid)
-		return
-	}
-
-	err = readAPIVersionsResponse(bytes.NewBuffer(resp))
-	if err != nil {
-		fmt.Println("err reading versions response:", err)
-		return
-	}
-
-	request = newSASLHandshakeRequest(handshakeCID, clientID, "PLAIN")
+	request := newSASLHandshakeRequest(handshakeCID, clientID, "PLAIN")
 	err = request.write(conn)
 	if err != nil {
 		fmt.Println("err sending metadata request:", err)
 		return
 	}
 
-	cid, resp, err = readResponse(conn, true)
+	cid, resp, err := readResponse(conn, true)
 	if err != nil {
 		fmt.Println("err reading handshake response:", err)
 		return
@@ -65,30 +45,73 @@ func main() {
 		return
 	}
 
-	err = readSASLHandshakeResponse(bytes.NewBuffer(resp))
+	err = readSASLHandshakeResponse(bytes.NewReader(resp))
 	if err != nil {
 		fmt.Println("err reading handshake response:", err)
 		return
 	}
 
-	request = newSASLAuthenticateRequest("$ConnectionString", "")
+	userName := os.Getenv("KAFKA_USERNAME")
+	password := os.Getenv("KAFKA_PASSWORD")
+
+	request = newSASLAuthenticateRequest(userName, password)
+	err = request.write(conn)
+	if err != nil {
+		fmt.Println("err sending auth request:", err)
+		return
+	}
+
+	_, resp, err = readResponse(conn, false)
+	if err != nil {
+		fmt.Println("err reading auth response:", err)
+		return
+	}
+
+	request = newMetadataRequest(metaCID, clientID, []string{"addfiretoposts"}, false)
 	err = request.write(conn)
 	if err != nil {
 		fmt.Println("err sending metadata request:", err)
 		return
 	}
 
-	cid, resp, err = readResponse(conn, false)
+	cid, resp, err = readResponse(conn, true)
 	if err != nil {
 		fmt.Println("err reading auth response:", err)
 		return
 	}
 
-	err = readSASLHandshakeResponse(bytes.NewBuffer(resp))
+	if cid != metaCID {
+		fmt.Println("uncorrelated response:", cid)
+		return
+	}
+
+	err = readMetadataResponse(bytes.NewReader(resp))
 	if err != nil {
 		fmt.Println("err reading auth response:", err)
 		return
 	}
 
-	fmt.Println("AUTH", resp)
+	request = newAPIVersionsRequest(apiCID, clientID)
+	err = request.write(conn)
+	if err != nil {
+		fmt.Println("err sending metadata request:", err)
+		return
+	}
+
+	cid, resp, err = readResponse(conn, true)
+	if err != nil {
+		fmt.Println("err reading auth response:", err)
+		return
+	}
+
+	if cid != apiCID {
+		fmt.Println("uncorrelated response:", cid)
+		return
+	}
+
+	err = readAPIVersionsResponse(bytes.NewReader(resp))
+	if err != nil {
+		fmt.Println("err reading auth response:", err)
+		return
+	}
 }
