@@ -67,7 +67,9 @@ func main() {
 		return
 	}
 
-	request = newMetadataRequest(metaCID, clientID, []string{"addfiretoposts"}, false)
+	topic := os.Getenv("KAFKA_TOPIC")
+
+	request = newMetadataRequest(metaCID, clientID, []string{topic}, false)
 	err = request.write(conn)
 	if err != nil {
 		fmt.Println("err sending metadata request:", err)
