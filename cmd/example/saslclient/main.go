@@ -40,7 +40,7 @@ func main() {
 
 	defer broker.Close()
 
-	err = broker.SendRequest(context.Background(), kafka.NewMetadataRequestV5([]string{}, false))
+	err = broker.RequestMetadata(context.Background(), []string{})
 	if err != nil {
 		fmt.Println("Send metadata error", err)
 		return

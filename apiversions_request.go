@@ -24,20 +24,30 @@ func NewAPIVersionsRequestV1() *APIVersionsRequestV1 {
 }
 
 // SupportedVersions represents a set of supported API versions
-type SupportedVersions map[APIKey]APIVersion
+type SupportedVersions map[APIKey]*APIVersion
 
-// IsSupported returns whether or not the given API Key and version are supported. Returns an UnsupportedVersionError if they're not supported.
-func (versions SupportedVersions) IsSupported(key APIKey, version int16) error {
+// Versions returns the min and max version supported for the API Key
+func (versions SupportedVersions) Versions(key APIKey) (int16, int16, error) {
 	v, ok := versions[key]
 	if !ok {
-		return newServerUnsupportedAPIError(key, nil)
+		return -1, -1, newServerUnsupportedAPIError(key, nil)
+	}
+
+	return v.MinVersion, v.MaxVersion, nil
+}
+
+// IsSupported returns whether or not the given API Key and version are supported.
+func (versions SupportedVersions) IsSupported(key APIKey, version int16) bool {
+	v, ok := versions[key]
+	if !ok {
+		return false
 	}
 
 	if version < v.MinVersion || version > v.MaxVersion {
-		return newServerUnsupportedAPIError(key, &v)
+		return false
 	}
 
-	return nil
+	return true
 }
 
 // APIVersion represents the versions of an API that are supported
@@ -82,7 +92,7 @@ func readAPIVersionsResponseV1(r io.Reader) (*apiV1Response, error) {
 			return nil, err
 		}
 
-		resp.versions[APIKey(apiKey)] = version
+		resp.versions[APIKey(apiKey)] = &version
 	}
 
 	throttleTime, err := readInt32(r)

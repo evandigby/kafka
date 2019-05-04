@@ -137,16 +137,13 @@ func (b *Broker) shipResponse(request sentRequest, resp *byteBuffer) error {
 
 func (b *Broker) readAPISupport() error {
 	request := NewAPIVersionsRequestV1()
-	rcid, err := b.sendRequest(context.Background(), request, false)
+	err := b.sendRequest(context.Background(), request, false)
 	if err != nil {
 		return err
 	}
-	cid, resp, err := b.readResponse(true)
+	_, resp, err := b.readResponse(true)
 	if err != nil {
 		return err
-	}
-	if cid != rcid {
-		return newUncorrelatedResponseError(rcid, cid)
 	}
 	versionResp, err := readAPIVersionsResponseV1(resp)
 	if err != nil {
@@ -164,22 +161,17 @@ func (b *Broker) saslAuth(c SASLConfig) error {
 		return fmt.Errorf("unsupported SASL Mechanism %q. Supported: %q", c.Mechaism, plainMechanism)
 	}
 
-	err := b.Versions.IsSupported(APIKeySaslHandshake, 0)
-	if err != nil {
-		return err
+	if !b.Versions.IsSupported(APIKeySaslHandshake, 0) {
+		return newServerUnsupportedAPIError(APIKeySaslHandshake, b.Versions[APIKeySaslHandshake])
 	}
 
 	handshakeRequest := newSASLHandshakeRequestV0(plainMechanism)
 
-	rcid, err := b.sendRequest(context.Background(), handshakeRequest, false)
+	err := b.sendRequest(context.Background(), handshakeRequest, false)
 
-	cid, resp, err := b.readResponse(true)
+	_, resp, err := b.readResponse(true)
 	if err != nil {
 		return err
-	}
-
-	if cid != rcid {
-		return newUncorrelatedResponseError(cid, rcid)
 	}
 
 	_, err = readSASLHandshakeResponseV0(resp)
@@ -189,7 +181,7 @@ func (b *Broker) saslAuth(c SASLConfig) error {
 
 	authRequest := NewSASLAuthenticateRequest(c.Plain.UserName, c.Plain.Password)
 
-	_, err = b.sendRequest(context.Background(), authRequest, false)
+	err = b.sendRequest(context.Background(), authRequest, false)
 	if err != nil {
 		return err
 	}
@@ -202,7 +194,7 @@ func (b *Broker) saslAuth(c SASLConfig) error {
 	return nil
 }
 
-func (b *Broker) sendRequest(ctx context.Context, ws Request, async bool) (int32, error) {
+func (b *Broker) sendRequest(ctx context.Context, ws Request, async bool) error {
 	b.requestLock.Lock()
 	defer b.requestLock.Unlock()
 
@@ -230,7 +222,7 @@ func (b *Broker) sendRequest(ctx context.Context, ws Request, async bool) (int32
 
 	err := r.write(b.conn)
 	if err != nil {
-		return correlationID, err
+		return err
 	}
 
 	if async {
@@ -240,13 +232,7 @@ func (b *Broker) sendRequest(ctx context.Context, ws Request, async bool) (int32
 		}
 	}
 
-	return correlationID, nil
-}
-
-// SendRequest sends a kafka request
-func (b *Broker) SendRequest(ctx context.Context, ws Request) error {
-	_, err := b.sendRequest(ctx, ws, true)
-	return err
+	return nil
 }
 
 func (b *Broker) readResponse(readCorrelation bool) (int32, *byteBuffer, error) {
@@ -274,6 +260,24 @@ func (b *Broker) readResponse(readCorrelation bool) (int32, *byteBuffer, error) 
 
 	cid, err := readInt32(buf)
 	return cid, buf, err
+}
+
+// RequestMetadata sends a request for metadata. If the API supports it, allowAutoTopicCreation will be sent as false
+func (b *Broker) RequestMetadata(ctx context.Context, topics []string) error {
+	if b.Versions.IsSupported(APIKeyMetadata, 5) {
+		return b.sendRequest(ctx, newMetadataRequestV5(topics, false), true)
+	}
+
+	return newServerUnsupportedAPIError(APIKeyMetadata, b.Versions[APIKeyMetadata])
+}
+
+// RequestMetadataWithAllowTopicCreation sends a request including topic creation or error if the require API isn't supported
+func (b *Broker) RequestMetadataWithAllowTopicCreation(ctx context.Context, topics []string, allowAutoTopicCreation bool) error {
+	if b.Versions.IsSupported(APIKeyMetadata, 5) {
+		return b.sendRequest(ctx, newMetadataRequestV5(topics, allowAutoTopicCreation), true)
+	}
+
+	return newServerUnsupportedAPIError(APIKeyMetadata, b.Versions[APIKeyMetadata])
 }
 
 // Close closes the connection to a Kafka broker
