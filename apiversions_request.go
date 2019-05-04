@@ -1,66 +1,95 @@
-package main
+package kafka
 
 import (
 	"encoding/binary"
-	"fmt"
 	"io"
+	"time"
 )
 
-type apiVersionsRequest struct{}
+// APIVersionsRequestV1 Represents a V1 API Version request
+type APIVersionsRequestV1 struct{}
 
-func (r *apiVersionsRequest) size() int32             { return 0 }
-func (r *apiVersionsRequest) write(w io.Writer) error { return nil }
+func (r *APIVersionsRequestV1) size() int32             { return 0 }
+func (r *APIVersionsRequestV1) write(w io.Writer) error { return nil }
 
-func newAPIVersionsRequest(correlationID int32, clientID string) *request {
-	return &request{
-		h: &requestHeader{
-			APIKey:        APIKeyAPIVersions,
-			APIVersion:    1,
-			CorrelationID: correlationID,
-			ClientID:      clientID,
-		},
-		r: &apiVersionsRequest{},
-	}
+// APIKey returns the API key for the request
+func (r *APIVersionsRequestV1) APIKey() APIKey { return APIKeyAPIVersions }
+
+// Version returns the request version
+func (r *APIVersionsRequestV1) Version() int16 { return 1 }
+
+// NewAPIVersionsRequestV1 creates a new V1 API Versions Request
+func NewAPIVersionsRequestV1() *APIVersionsRequestV1 {
+	return &APIVersionsRequestV1{}
 }
 
-func readAPIVersionsResponse(r io.Reader) error {
-	var kerr kafkaError
-	err := binary.Read(r, binary.BigEndian, &kerr.code)
-	if err != nil {
-		return err
+// SupportedVersions represents a set of supported API versions
+type SupportedVersions map[APIKey]APIVersion
+
+// IsSupported returns whether or not the given API Key and version are supported. Returns an UnsupportedVersionError if they're not supported.
+func (versions SupportedVersions) IsSupported(key APIKey, version int16) error {
+	v, ok := versions[key]
+	if !ok {
+		return newServerUnsupportedAPIError(key, nil)
 	}
-	if kerr.code != 0 {
-		return &kerr
+
+	if version < v.MinVersion || version > v.MaxVersion {
+		return newServerUnsupportedAPIError(key, &v)
+	}
+
+	return nil
+}
+
+// APIVersion represents the versions of an API that are supported
+type APIVersion struct {
+	MinVersion int16
+	MaxVersion int16
+}
+type apiV1Response struct {
+	err error
+
+	versions SupportedVersions
+
+	throttleTime time.Duration
+}
+
+func readAPIVersionsResponseV1(r io.Reader) (*apiV1Response, error) {
+	err := ErrorFromReader(r)
+	if err != nil {
+		return nil, err
+	}
+
+	resp := apiV1Response{
+		versions: SupportedVersions{},
 	}
 
 	var arrLen int32
 	err = binary.Read(r, binary.BigEndian, &arrLen)
 	for i := 0; i < int(arrLen); i++ {
-		var (
-			apiKey     int16
-			minVersion int16
-			maxVersion int16
-		)
-		err = binary.Read(r, binary.BigEndian, &apiKey)
+		var version APIVersion
+		apiKey, err := readInt16(r)
 		if err != nil {
-			return err
+			return nil, err
 		}
-		err = binary.Read(r, binary.BigEndian, &minVersion)
+
+		version.MinVersion, err = readInt16(r)
 		if err != nil {
-			return err
+			return nil, err
 		}
-		err = binary.Read(r, binary.BigEndian, &maxVersion)
+
+		version.MaxVersion, err = readInt16(r)
 		if err != nil {
-			return err
+			return nil, err
 		}
-		fmt.Printf("Api %q: Min: %v, Max: %v\n", apiKeys[apiKey], minVersion, maxVersion)
+
+		resp.versions[APIKey(apiKey)] = version
 	}
 
-	var throttleTime int32
-	err = binary.Read(r, binary.BigEndian, throttleTime)
+	throttleTime, err := readInt32(r)
 	if err != nil {
-		return err
+		return nil, err
 	}
-	fmt.Println("Throttle time:", throttleTime)
-	return nil
+
+	resp.throttleTime = time.Duration(throttleTime) * time.Millisecond
+	return &resp, nil
 }

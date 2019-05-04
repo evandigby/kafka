@@ -1,40 +1,41 @@
-package main
+package kafka
 
 import (
-	"encoding/binary"
 	"fmt"
 	"io"
 )
 
-type saslAuthenticateRequest struct {
+// SASLAuthenticateRequest represents a SASLAuthentication Request
+type SASLAuthenticateRequest struct {
 	data []byte
 }
 
-func (r *saslAuthenticateRequest) size() int32 {
+func (r *SASLAuthenticateRequest) size() int32 {
 	return int32(len(r.data))
 }
 
-func (r *saslAuthenticateRequest) write(w io.Writer) error {
+func (r *SASLAuthenticateRequest) write(w io.Writer) error {
 	_, err := w.Write(r.data)
 	return err
 }
 
-func newSASLAuthenticateRequest(username, password string) *request {
-	return &request{
-		r: &saslAuthenticateRequest{
-			data: []byte("" + "\x00" + username + "\x00" + password),
-		},
+// APIKey returns the API key for the request
+func (r *SASLAuthenticateRequest) APIKey() APIKey { return APIKeySaslAuthenticate }
+
+// Version returns the request version
+func (r *SASLAuthenticateRequest) Version() int16 { return -1 }
+
+// NewSASLAuthenticateRequest creates a new SASLAuthentication request
+func NewSASLAuthenticateRequest(username, password string) *SASLAuthenticateRequest {
+	return &SASLAuthenticateRequest{
+		data: []byte("" + "\x00" + username + "\x00" + password),
 	}
 }
 
 func readSASLAuthenticateResponse(r io.Reader) error {
-	var kerr kafkaError
-	err := binary.Read(r, binary.BigEndian, &kerr.code)
+	err := ErrorFromReader(r)
 	if err != nil {
 		return err
-	}
-	if kerr.code != 0 {
-		return &kerr
 	}
 
 	errMsg, err := readNullableString(r)

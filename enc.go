@@ -1,4 +1,4 @@
-package main
+package kafka
 
 import (
 	"encoding/binary"
@@ -88,12 +88,30 @@ func boolSize() int32 {
 	return 1
 }
 
+func readBool(r io.Reader) (bool, error) {
+	var v bool
+	err := binary.Read(r, binary.BigEndian, &v)
+	return v, err
+}
+
 func writeBool(w io.Writer, value bool) error {
-	if !value {
-		_, err := w.Write([]byte{0})
-		return err
+	data := []byte{0}
+	if value {
+		data[0] = 1
 	}
 
-	_, err := w.Write([]byte{1})
+	_, err := w.Write(data)
 	return err
+}
+
+func readInt32(r io.Reader) (int32, error) {
+	var v int32
+	err := binary.Read(r, binary.BigEndian, &v)
+	return v, err
+}
+
+func readInt16(r io.Reader) (int16, error) {
+	var v int16
+	err := binary.Read(r, binary.BigEndian, &v)
+	return v, err
 }

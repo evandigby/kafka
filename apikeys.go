@@ -1,54 +1,57 @@
-package main
+package kafka
+
+// APIKey represents the type for API keys
+type APIKey int16
 
 // API Keys
 const (
-	APIKeyProduce                 int16 = 0
-	APIKeyFetch                   int16 = 1
-	APIKeyListOffsets             int16 = 2
-	APIKeyMetadata                int16 = 3
-	APIKeyLeaderAndIsr            int16 = 4
-	APIKeyStopReplica             int16 = 5
-	APIKeyUpdateMetadata          int16 = 6
-	APIKeyControlledShutdown      int16 = 7
-	APIKeyOffsetCommit            int16 = 8
-	APIKeyOffsetFetch             int16 = 9
-	APIKeyFindCoordinator         int16 = 10
-	APIKeyJoinGroup               int16 = 11
-	APIKeyHeartbeat               int16 = 12
-	APIKeyLeaveGroup              int16 = 13
-	APIKeySyncGroup               int16 = 14
-	APIKeyDescribeGroups          int16 = 15
-	APIKeyListGroups              int16 = 16
-	APIKeySaslHandshake           int16 = 17
-	APIKeyAPIVersions             int16 = 18
-	APIKeyCreateTopics            int16 = 19
-	APIKeyDeleteTopics            int16 = 20
-	APIKeyDeleteRecords           int16 = 21
-	APIKeyInitProducerID          int16 = 22
-	APIKeyOffsetForLeaderEpoch    int16 = 23
-	APIKeyAddPartitionsToTxn      int16 = 24
-	APIKeyAddOffsetsToTxn         int16 = 25
-	APIKeyEndTxn                  int16 = 26
-	APIKeyWriteTxnMarkers         int16 = 27
-	APIKeyTxnOffsetCommit         int16 = 28
-	APIKeyDescribeAcls            int16 = 29
-	APIKeyCreateAcls              int16 = 30
-	APIKeyDeleteAcls              int16 = 31
-	APIKeyDescribeConfigs         int16 = 32
-	APIKeyAlterConfigs            int16 = 33
-	APIKeyAlterReplicaLogDirs     int16 = 34
-	APIKeyDescribeLogDirs         int16 = 35
-	APIKeySaslAuthenticate        int16 = 36
-	APIKeyCreatePartitions        int16 = 37
-	APIKeyCreateDelegationToken   int16 = 38
-	APIKeyRenewDelegationToken    int16 = 39
-	APIKeyExpireDelegationToken   int16 = 40
-	APIKeyDescribeDelegationToken int16 = 41
-	APIKeyDeleteGroups            int16 = 42
-	APIKeyElectPreferredLeaders   int16 = 43
+	APIKeyProduce                 APIKey = 0
+	APIKeyFetch                   APIKey = 1
+	APIKeyListOffsets             APIKey = 2
+	APIKeyMetadata                APIKey = 3
+	APIKeyLeaderAndIsr            APIKey = 4
+	APIKeyStopReplica             APIKey = 5
+	APIKeyUpdateMetadata          APIKey = 6
+	APIKeyControlledShutdown      APIKey = 7
+	APIKeyOffsetCommit            APIKey = 8
+	APIKeyOffsetFetch             APIKey = 9
+	APIKeyFindCoordinator         APIKey = 10
+	APIKeyJoinGroup               APIKey = 11
+	APIKeyHeartbeat               APIKey = 12
+	APIKeyLeaveGroup              APIKey = 13
+	APIKeySyncGroup               APIKey = 14
+	APIKeyDescribeGroups          APIKey = 15
+	APIKeyListGroups              APIKey = 16
+	APIKeySaslHandshake           APIKey = 17
+	APIKeyAPIVersions             APIKey = 18
+	APIKeyCreateTopics            APIKey = 19
+	APIKeyDeleteTopics            APIKey = 20
+	APIKeyDeleteRecords           APIKey = 21
+	APIKeyInitProducerID          APIKey = 22
+	APIKeyOffsetForLeaderEpoch    APIKey = 23
+	APIKeyAddPartitionsToTxn      APIKey = 24
+	APIKeyAddOffsetsToTxn         APIKey = 25
+	APIKeyEndTxn                  APIKey = 26
+	APIKeyWriteTxnMarkers         APIKey = 27
+	APIKeyTxnOffsetCommit         APIKey = 28
+	APIKeyDescribeAcls            APIKey = 29
+	APIKeyCreateAcls              APIKey = 30
+	APIKeyDeleteAcls              APIKey = 31
+	APIKeyDescribeConfigs         APIKey = 32
+	APIKeyAlterConfigs            APIKey = 33
+	APIKeyAlterReplicaLogDirs     APIKey = 34
+	APIKeyDescribeLogDirs         APIKey = 35
+	APIKeySaslAuthenticate        APIKey = 36
+	APIKeyCreatePartitions        APIKey = 37
+	APIKeyCreateDelegationToken   APIKey = 38
+	APIKeyRenewDelegationToken    APIKey = 39
+	APIKeyExpireDelegationToken   APIKey = 40
+	APIKeyDescribeDelegationToken APIKey = 41
+	APIKeyDeleteGroups            APIKey = 42
+	APIKeyElectPreferredLeaders   APIKey = 43
 )
 
-var apiKeys = map[int16]string{
+var apiKeys = map[APIKey]string{
 	APIKeyProduce:                 "Produce",
 	APIKeyFetch:                   "Fetch",
 	APIKeyListOffsets:             "ListOffsets",

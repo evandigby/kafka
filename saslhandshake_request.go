@@ -1,59 +1,58 @@
-package main
+package kafka
 
 import (
-	"encoding/binary"
-	"fmt"
 	"io"
 )
 
-type saslHandshakeRequest struct {
+// SASLHandshakeRequestV0 is a V0 sasl handshake request
+type SASLHandshakeRequestV0 struct {
 	mechanism string
 }
 
-func (r *saslHandshakeRequest) size() int32 {
+func (r *SASLHandshakeRequestV0) size() int32 {
 	return stringSize(r.mechanism)
 }
 
-func (r *saslHandshakeRequest) write(w io.Writer) error {
+func (r *SASLHandshakeRequestV0) write(w io.Writer) error {
 	return writeString(w, r.mechanism)
 }
 
-func newSASLHandshakeRequest(correlationID int32, clientID string, mechanism string) *request {
-	return &request{
-		h: &requestHeader{
-			APIKey:        APIKeySaslHandshake,
-			APIVersion:    0,
-			CorrelationID: correlationID,
-			ClientID:      clientID,
-		},
-		r: &saslHandshakeRequest{
-			mechanism: mechanism,
-		},
+// APIKey returns the API key for the request
+func (r *SASLHandshakeRequestV0) APIKey() APIKey { return APIKeySaslHandshake }
+
+// Version returns the request version
+func (r *SASLHandshakeRequestV0) Version() int16 { return 0 }
+
+func newSASLHandshakeRequestV0(mechanism string) *SASLHandshakeRequestV0 {
+	return &SASLHandshakeRequestV0{
+		mechanism: mechanism,
 	}
 }
 
-func readSASLHandshakeResponse(r io.Reader) error {
-	var kerr kafkaError
-	err := binary.Read(r, binary.BigEndian, &kerr.code)
+// SASLHandshakeV0Response represents a V0 sasl handshake response
+type SASLHandshakeV0Response struct {
+	Mechanisms []string
+}
+
+func readSASLHandshakeResponseV0(r io.Reader) (*SASLHandshakeV0Response, error) {
+	err := ErrorFromReader(r)
 	if err != nil {
-		return err
-	}
-	if kerr.code != 0 {
-		return &kerr
+		return nil, err
 	}
 
-	var arrLen int32
-	err = binary.Read(r, binary.BigEndian, &arrLen)
+	arrLen, err := readInt32(r)
 	if err != nil {
-		return err
+		return nil, err
 	}
+
+	var resp SASLHandshakeV0Response
+	resp.Mechanisms = make([]string, int(arrLen))
 	for i := 0; i < int(arrLen); i++ {
-		mechanism, err := readString(r)
+		resp.Mechanisms[i], err = readString(r)
 		if err != nil {
-			return err
+			return nil, err
 		}
-		fmt.Printf("Mechanism: %q\n", mechanism)
 	}
 
-	return nil
+	return &resp, nil
 }

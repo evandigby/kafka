@@ -1,13 +1,12 @@
-package main
+package kafka
 
 import (
 	"encoding/binary"
-	"fmt"
 	"io"
 )
 
 type requestHeader struct {
-	APIKey        int16
+	APIKey        APIKey
 	APIVersion    int16
 	CorrelationID int32
 	ClientID      string
@@ -42,14 +41,17 @@ func (r *requestHeader) write(w io.Writer) error {
 	return writeString(w, r.ClientID)
 }
 
-type writerSizer interface {
+// Request represents a kafka request
+type Request interface {
+	APIKey() APIKey
+	Version() int16
 	size() int32
 	write(w io.Writer) error
 }
 
 type request struct {
 	h *requestHeader
-	r writerSizer
+	r Request
 }
 
 func (r *request) write(w io.Writer) error {
@@ -65,29 +67,4 @@ func (r *request) write(w io.Writer) error {
 	}
 
 	return r.r.write(w)
-}
-
-func readResponse(r io.Reader, readCorrelation bool) (int32, []byte, error) {
-	var size int32
-	err := binary.Read(r, binary.BigEndian, &size)
-	if err != nil {
-		fmt.Println("first")
-		return -1, nil, err
-	}
-
-	fmt.Println("SIZE:", size)
-
-	resp := make([]byte, int(size))
-	_, err = io.ReadFull(r, resp)
-	if err != nil {
-		fmt.Println("Second")
-		return -1, nil, err
-	}
-
-	if !readCorrelation {
-		return -1, resp, nil
-	}
-
-	cid := int32(binary.BigEndian.Uint32(resp[:4]))
-	return cid, resp[4:], nil
 }
