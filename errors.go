@@ -93,7 +93,7 @@ const (
 	ErrorGroupMaxSizeReached                int16 = 81 // Consumer group The consumer group has reached its max size. already has the configured maximum number of members.
 )
 
-var errors = map[int16]string{
+var kafkaErrors = map[int16]string{
 	ErrorUnknownServerError:                 "UNKNOWN_SERVER_ERROR",
 	ErrorNone:                               "NONE",
 	ErrorOffsetOutOfRange:                   "OFFSET_OUT_OF_RANGE",
@@ -376,7 +376,7 @@ type Error struct {
 }
 
 func (e *Error) Error() string {
-	return fmt.Sprintf("Kafka Error %v (%v): %v", errors[e.Code], e.Code, errorsFriendly[e.Code])
+	return fmt.Sprintf("Kafka Error %v (%v): %v", kafkaErrors[e.Code], e.Code, errorsFriendly[e.Code])
 }
 
 func newServerUnsupportedAPIError(key APIKey, supportedVersions *APIVersion) error {
