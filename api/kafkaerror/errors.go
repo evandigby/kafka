@@ -1,4 +1,4 @@
-package kafka
+package kafkaerror
 
 import (
 	"encoding/binary"
@@ -351,13 +351,13 @@ var retriable = map[int16]bool{
 	ErrorGroupMaxSizeReached:                false,
 }
 
-// NewError creates a new error from a kafka error code
-func NewError(code int16) error {
+// New creates a new error from a kafka error code
+func New(code int16) error {
 	return &Error{Code: code}
 }
 
-// ErrorFromReader creates an error from a reader by reading a 16 bit (2 bytes) value from the reader. It returns nil when "no error" is received to keep with Go semantics.
-func ErrorFromReader(r io.Reader) error {
+// FromReader creates an error from a reader by reading a 16 bit (2 bytes) value from the reader. It returns nil when "no error" is received to keep with Go semantics.
+func FromReader(r io.Reader) error {
 	var kerr Error
 	err := binary.Read(r, binary.BigEndian, &kerr.Code)
 	if err != nil {
@@ -377,80 +377,4 @@ type Error struct {
 
 func (e *Error) Error() string {
 	return fmt.Sprintf("Kafka Error %v (%v): %v", kafkaErrors[e.Code], e.Code, errorsFriendly[e.Code])
-}
-
-func newServerUnsupportedAPIError(key APIKey, supportedVersions *APIVersion) error {
-	return &ServerUnsupportedAPIError{
-		API:               key,
-		SupportedVersions: supportedVersions,
-	}
-}
-
-// IsServerUnsupportedVersionError returns whether or not this error is an unsupported version error
-func IsServerUnsupportedVersionError(err error) bool {
-	_, ok := err.(*ServerUnsupportedAPIError)
-	return ok
-}
-
-// ServerUnsupportedAPIError is returned when you attempt to use an API or API version that isn't supported by the server
-type ServerUnsupportedAPIError struct {
-	API               APIKey
-	SupportedVersions *APIVersion
-}
-
-func (e *ServerUnsupportedAPIError) Error() string {
-	if e.SupportedVersions == nil {
-		return fmt.Sprintf("server unsupported API %v (%q):", e.API, apiKeys[e.API])
-	}
-
-	return fmt.Sprintf("server unsupported API version for %v (%q). Supported versions are Min: %v, Max: %v", e.API, apiKeys[e.API], e.SupportedVersions.MinVersion, e.SupportedVersions.MaxVersion)
-}
-
-func newClientUnsupportedAPIError(key APIKey, v int16) error {
-	return &ClientUnsupportedAPIError{
-		API:     key,
-		Version: v,
-	}
-}
-
-// IsClientUnsupportedVersionError returns whether or not this error is an unsupported version error
-func IsClientUnsupportedVersionError(err error) bool {
-	_, ok := err.(*ClientUnsupportedAPIError)
-	return ok
-}
-
-// ClientUnsupportedAPIError is returned when you attempt to use an API or API version that isn't supported by the server
-type ClientUnsupportedAPIError struct {
-	API     APIKey
-	Version int16
-}
-
-func (e *ClientUnsupportedAPIError) Error() string {
-	if e.Version < 0 {
-		return fmt.Sprintf("client unsupported API %v (%q)", e.API, apiKeys[e.API])
-	}
-	return fmt.Sprintf("client unsupported API Version for %v (%q): %v", e.API, apiKeys[e.API], e.Version)
-}
-
-// IsUncorrelatedResponseError returns whether or not this error is an unsupported version error
-func IsUncorrelatedResponseError(err error) bool {
-	_, ok := err.(*UncorrelatedResponseError)
-	return ok
-}
-
-// UncorrelatedResponseError is returned when you attempt to use an API or API version that isn't supported by the server
-type UncorrelatedResponseError struct {
-	ExpectedCID int32
-	ActualCID   int32
-}
-
-func (e *UncorrelatedResponseError) Error() string {
-	return fmt.Sprintf("expected %v but got %v for correlation ID", e.ExpectedCID, e.ActualCID)
-}
-
-func newUncorrelatedResponseError(expected, actual int32) error {
-	return &UncorrelatedResponseError{
-		ExpectedCID: expected,
-		ActualCID:   actual,
-	}
 }

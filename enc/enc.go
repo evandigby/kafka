@@ -1,11 +1,11 @@
-package kafka
+package enc
 
 import (
 	"encoding/binary"
 	"io"
 )
 
-func readNullableString(r io.Reader) (*string, error) {
+func ReadNullableString(r io.Reader) (*string, error) {
 	var strLen int16
 	err := binary.Read(r, binary.BigEndian, &strLen)
 	if err != nil {
@@ -27,7 +27,7 @@ func readNullableString(r io.Reader) (*string, error) {
 	return &str, nil
 }
 
-func readString(r io.Reader) (string, error) {
+func ReadString(r io.Reader) (string, error) {
 	var strLen int16
 	err := binary.Read(r, binary.BigEndian, &strLen)
 	if err != nil {
@@ -43,7 +43,7 @@ func readString(r io.Reader) (string, error) {
 	return string(buf), nil
 }
 
-func writeString(w io.Writer, s string) error {
+func WriteString(w io.Writer, s string) error {
 	err := binary.Write(w, binary.BigEndian, int16(len(s)))
 	if err != nil {
 		return err
@@ -53,11 +53,26 @@ func writeString(w io.Writer, s string) error {
 	return err
 }
 
-func stringSize(s string) int32 {
+func StringSize(s string) int32 {
 	return int32(len(s)) + 2
 }
 
-func writeStringArray(w io.Writer, strings []string) error {
+func WriteStringArray(w io.Writer, strings []string) error {
+	err := binary.Write(w, binary.BigEndian, int32(len(strings)))
+	if err != nil {
+		return err
+	}
+
+	for _, s := range strings {
+		err = WriteString(w, s)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func WriteNullableStringArray(w io.Writer, strings []string) error {
 	if len(strings) == 0 {
 		return binary.Write(w, binary.BigEndian, int32(-1))
 	}
@@ -68,7 +83,7 @@ func writeStringArray(w io.Writer, strings []string) error {
 	}
 
 	for _, s := range strings {
-		err = writeString(w, s)
+		err = WriteString(w, s)
 		if err != nil {
 			return err
 		}
@@ -76,25 +91,25 @@ func writeStringArray(w io.Writer, strings []string) error {
 	return nil
 }
 
-func stringArraySize(strings []string) int32 {
+func StringArraySize(strings []string) int32 {
 	sz := int32(4)
 	for _, s := range strings {
-		sz += stringSize(s)
+		sz += StringSize(s)
 	}
 	return sz
 }
 
-func boolSize() int32 {
+func BoolSize() int32 {
 	return 1
 }
 
-func readBool(r io.Reader) (bool, error) {
+func ReadBool(r io.Reader) (bool, error) {
 	var v bool
 	err := binary.Read(r, binary.BigEndian, &v)
 	return v, err
 }
 
-func writeBool(w io.Writer, value bool) error {
+func WriteBool(w io.Writer, value bool) error {
 	data := []byte{0}
 	if value {
 		data[0] = 1
@@ -104,13 +119,13 @@ func writeBool(w io.Writer, value bool) error {
 	return err
 }
 
-func readInt32(r io.Reader) (int32, error) {
+func ReadInt32(r io.Reader) (int32, error) {
 	var v int32
 	err := binary.Read(r, binary.BigEndian, &v)
 	return v, err
 }
 
-func readInt16(r io.Reader) (int16, error) {
+func ReadInt16(r io.Reader) (int16, error) {
 	var v int16
 	err := binary.Read(r, binary.BigEndian, &v)
 	return v, err

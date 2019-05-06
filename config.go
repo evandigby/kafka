@@ -1,6 +1,10 @@
 package kafka
 
-import "time"
+import (
+	"time"
+
+	"github.com/evandigby/kafka/api"
+)
 
 // SASLPlainConfig represents configuration required for SASLPlain mechanism
 type SASLPlainConfig struct {
@@ -17,7 +21,7 @@ type SASLConfig struct {
 }
 
 // OnResponse is called when a response is recieved
-type OnResponse func(key APIKey, version int16, resp interface{})
+type OnResponse func(key api.Key, version int16, resp interface{})
 
 // OnResponseError is called when there is an error recieving a response
 type OnResponseError func(err error)

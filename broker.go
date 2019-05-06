@@ -1,6 +1,7 @@
 package kafka
 
 import (
+	"bytes"
 	"context"
 	"crypto/tls"
 	"errors"
@@ -9,6 +10,12 @@ import (
 	"net"
 	"sync"
 	"time"
+
+	"github.com/evandigby/kafka/api"
+	"github.com/evandigby/kafka/api/metadata"
+	"github.com/evandigby/kafka/api/sasl"
+	"github.com/evandigby/kafka/api/versions"
+	"github.com/evandigby/kafka/enc"
 )
 
 // Errors returned by broker
@@ -42,6 +49,7 @@ func NewBroker(addr string, c BrokerConfig) (*Broker, error) {
 		onResponse:      c.OnResponse,
 		onResponseError: c.OnResponseError,
 	}
+
 	err = broker.readAPISupport()
 	if err != nil {
 		return nil, err
@@ -61,14 +69,14 @@ func NewBroker(addr string, c BrokerConfig) (*Broker, error) {
 
 type sentRequest struct {
 	CorrelationID int32
-	Request       Request
+	Request       api.Request
 }
 
 // Broker represents a single Kafka broker
 type Broker struct {
 	clientID      string
 	conn          net.Conn
-	Versions      SupportedVersions
+	Versions      versions.Supported
 	correlationID int32
 	readTimeout   time.Duration
 	sendTimeout   time.Duration
@@ -96,7 +104,7 @@ func (b *Broker) Close() error {
 }
 
 // SendRequest sends a request to the broker
-func (b *Broker) SendRequest(ctx context.Context, ws Request) error {
+func (b *Broker) SendRequest(ctx context.Context, req api.Request) error {
 	b.sendMutex.Lock()
 	defer b.sendMutex.Unlock()
 
@@ -109,41 +117,48 @@ func (b *Broker) SendRequest(ctx context.Context, ws Request) error {
 	cid := b.correlationID
 	b.correlationID++
 
-	err := b.sendRequestSync(ctx, cid, ws)
+	err := b.sendRequestSync(ctx, cid, req)
 	if err != nil {
 		return err
 	}
 
 	b.sentRequests <- sentRequest{
 		CorrelationID: cid,
-		Request:       ws,
+		Request:       req,
 	}
 
 	return nil
 }
 
-func (b *Broker) sendRequestSync(ctx context.Context, correlationID int32, ws Request) error {
-	var h *requestHeader
+func (b *Broker) sendRequestSync(ctx context.Context, correlationID int32, req api.Request) error {
+	var h *api.RequestHeader
 
-	if ws.Version() >= 0 {
-		h = &requestHeader{
-			APIKey:        ws.APIKey(),
-			APIVersion:    ws.Version(),
+	if req.Version() >= 0 {
+		h = &api.RequestHeader{
+			APIKey:        req.APIKey(),
+			APIVersion:    req.Version(),
 			CorrelationID: correlationID,
 			ClientID:      b.clientID,
 		}
 	}
 
-	r := &request{
-		h: h,
-		r: ws,
+	r := &api.RequestData{
+		Header:  h,
+		Request: req,
 	}
 
 	if deadline, ok := ctx.Deadline(); ok {
-		b.conn.SetWriteDeadline(deadline)
+		err := b.conn.SetWriteDeadline(deadline)
+		if err != nil {
+			return err
+		}
 	}
 
-	return r.write(b.conn)
+	buf := bytes.NewBuffer(nil)
+
+	r.Write(buf)
+
+	return r.Write(b.conn)
 }
 
 func (b *Broker) readResponses() {
@@ -178,7 +193,7 @@ func (b *Broker) readResponses() {
 		}
 
 		if cid != correlatedRequest.CorrelationID {
-			b.onResponseError(newUncorrelatedResponseError(cid, correlatedRequest.CorrelationID))
+			b.onResponseError(NewUncorrelatedResponseError(cid, correlatedRequest.CorrelationID))
 			continue
 		}
 
@@ -191,9 +206,12 @@ func (b *Broker) readResponses() {
 }
 
 func (b *Broker) readResponse(readCorrelation bool) (int32, *byteBuffer, error) {
-	b.conn.SetReadDeadline(time.Now().Add(b.readTimeout))
+	err := b.conn.SetReadDeadline(time.Now().Add(b.readTimeout))
+	if err != nil {
+		return -1, nil, err
+	}
 
-	size, err := readInt32(b.conn)
+	size, err := enc.ReadInt32(b.conn)
 	if err != nil {
 		return -1, nil, err
 	}
@@ -213,7 +231,7 @@ func (b *Broker) readResponse(readCorrelation bool) (int32, *byteBuffer, error) 
 		return -1, buf, nil
 	}
 
-	cid, err := readInt32(buf)
+	cid, err := enc.ReadInt32(buf)
 	return cid, buf, err
 }
 
@@ -221,28 +239,28 @@ func (b *Broker) shipResponse(request sentRequest, resp *byteBuffer) error {
 	defer resp.Close()
 
 	var (
-		v   interface{}
-		err error
+		responseValue interface{}
+		err           error
 	)
 
 	switch request.Request.APIKey() {
-	case APIKeyMetadata:
-		v, err = readMetadataResponse(request.Request.Version(), resp)
+	case api.KeyMetadata:
+		responseValue, err = metadata.ReadResponse(request.Request.Version(), resp)
 	default:
-		return newClientUnsupportedAPIError(request.Request.APIKey(), request.Request.Version())
+		return versions.NewClientUnsupportedAPIError(request.Request.APIKey(), request.Request.Version())
 	}
 
 	if err != nil {
 		return err
 	}
 
-	go b.onResponse(request.Request.APIKey(), request.Request.Version(), v)
+	go b.onResponse(request.Request.APIKey(), request.Request.Version(), responseValue)
 
 	return nil
 }
 
 func (b *Broker) readAPISupport() error {
-	err := b.sendRequestSync(context.Background(), apiCID, NewAPIVersionsRequestV1())
+	err := b.sendRequestSync(context.Background(), apiCID, &versions.Request{})
 	if err != nil {
 		return err
 	}
@@ -253,15 +271,15 @@ func (b *Broker) readAPISupport() error {
 	}
 
 	if cid != apiCID {
-		return newUncorrelatedResponseError(apiCID, cid)
+		return NewUncorrelatedResponseError(apiCID, cid)
 	}
 
-	versionResp, err := readAPIVersionsResponseV1(resp)
+	versionResp, err := versions.ReadV1Response(resp)
 	if err != nil {
 		return err
 	}
 
-	b.Versions = versionResp.versions
+	b.Versions = versionResp.Versions
 	return nil
 }
 
@@ -273,29 +291,27 @@ func (b *Broker) saslAuth(c SASLConfig) error {
 		return fmt.Errorf("unsupported SASL Mechanism %q. Supported: %q", c.Mechaism, plainMechanism)
 	}
 
-	if !b.Versions.IsSupported(APIKeySaslHandshake, 0) {
-		return newServerUnsupportedAPIError(APIKeySaslHandshake, b.Versions[APIKeySaslHandshake])
+	if !b.Versions.IsSupported(api.KeySaslHandshake, 0) {
+		return versions.NewServerUnsupportedAPIError(api.KeySaslHandshake, b.Versions[api.KeySaslHandshake])
 	}
 
-	handshakeRequest := newSASLHandshakeRequestV0(plainMechanism)
-
+	handshakeRequest := sasl.NewHandshakeRequestV0(plainMechanism)
 	err := b.sendRequestSync(context.Background(), authCID, handshakeRequest)
-
 	cid, resp, err := b.readResponse(true)
 	if err != nil {
 		return err
 	}
 
 	if cid != authCID {
-		return newUncorrelatedResponseError(authCID, cid)
+		return NewUncorrelatedResponseError(authCID, cid)
 	}
 
-	_, err = readSASLHandshakeResponseV0(resp)
+	_, err = sasl.ReadHandshakeResponseV0(resp)
 	if err != nil {
 		return err
 	}
 
-	authRequest := NewSASLAuthenticateRequest(c.Plain.UserName, c.Plain.Password)
+	authRequest := sasl.NewAuthenticateRequest(c.Plain.UserName, c.Plain.Password)
 
 	err = b.sendRequestSync(context.Background(), -1, authRequest)
 	if err != nil {
@@ -310,20 +326,38 @@ func (b *Broker) saslAuth(c SASLConfig) error {
 	return nil
 }
 
-// RequestMetadata sends a request for metadata. If the API supports it, allowAutoTopicCreation will be sent as false
-func (b *Broker) RequestMetadata(ctx context.Context, topics []string) error {
-	if b.Versions.IsSupported(APIKeyMetadata, 5) {
-		return b.SendRequest(ctx, newMetadataRequestV5(topics, false))
+// RequestMetadata sends a request including topic creation or error if the required API isn't supported
+func (b *Broker) RequestMetadata(ctx context.Context, topics []string, allowAutoTopicCreation bool) error {
+	r, err := b.Versions.Request(api.KeyMetadata, &metadata.Request{
+		Topics:             topics,
+		AllowTopicCreation: allowAutoTopicCreation,
+	})
+	if err != nil {
+		return err
 	}
 
-	return newServerUnsupportedAPIError(APIKeyMetadata, b.Versions[APIKeyMetadata])
+	return b.SendRequest(ctx, r)
 }
 
-// RequestMetadataWithAllowTopicCreation sends a request including topic creation or error if the require API isn't supported
-func (b *Broker) RequestMetadataWithAllowTopicCreation(ctx context.Context, topics []string, allowAutoTopicCreation bool) error {
-	if b.Versions.IsSupported(APIKeyMetadata, 5) {
-		return b.SendRequest(ctx, newMetadataRequestV5(topics, allowAutoTopicCreation))
-	}
+// IsUncorrelatedResponseError returns whether or not this error is an unsupported version error
+func IsUncorrelatedResponseError(err error) bool {
+	_, ok := err.(*UncorrelatedResponseError)
+	return ok
+}
 
-	return newServerUnsupportedAPIError(APIKeyMetadata, b.Versions[APIKeyMetadata])
+// UncorrelatedResponseError is returned when you attempt to use an API or API version that isn't supported by the server
+type UncorrelatedResponseError struct {
+	ExpectedCID int32
+	ActualCID   int32
+}
+
+func (e *UncorrelatedResponseError) Error() string {
+	return fmt.Sprintf("expected %v but got %v for correlation ID", e.ExpectedCID, e.ActualCID)
+}
+
+func NewUncorrelatedResponseError(expected, actual int32) error {
+	return &UncorrelatedResponseError{
+		ExpectedCID: expected,
+		ActualCID:   actual,
+	}
 }

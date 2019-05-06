@@ -7,6 +7,7 @@ import (
 	"os"
 
 	"github.com/evandigby/kafka"
+	"github.com/evandigby/kafka/api"
 )
 
 func main() {
@@ -20,6 +21,7 @@ func main() {
 	received := make(chan struct{})
 
 	broker, err := kafka.NewBroker(host, kafka.BrokerConfig{
+		ClientID: "testClient",
 		SASL: kafka.SASLConfig{
 			Enabled:  true,
 			Mechaism: "PLAIN",
@@ -28,8 +30,14 @@ func main() {
 				Password: password,
 			},
 		},
-		OnResponse: func(key kafka.APIKey, version int16, resp interface{}) {
+		OnResponse: func(key api.Key, version int16, resp interface{}) {
+			fmt.Println("Key", key)
+			fmt.Println("Version", version)
 			enc.Encode(resp)
+			close(received)
+		},
+		OnResponseError: func(err error) {
+			fmt.Println("Response error:", err)
 			close(received)
 		},
 	})
@@ -40,7 +48,7 @@ func main() {
 
 	defer broker.Close()
 
-	err = broker.RequestMetadata(context.Background(), []string{})
+	err = broker.RequestMetadata(context.Background(), []string{}, false)
 	if err != nil {
 		fmt.Println("Send metadata error", err)
 		return
