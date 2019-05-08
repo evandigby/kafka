@@ -28,48 +28,48 @@ func newRequestFactory(apiKey api.Key, minVersion, maxVersion int16) (api.Reques
 }
 
 func newMetadataRequestForVersion(minVersion, maxVersion int16) (api.RequestFactory, error) {
-	// switch maxVersion {
-	// case 0:
-	return func(d interface{}) api.Request {
-		r := metadata.NewRequestV0(d.(*metadata.Request))
-		return &r
-	}, nil
-	// case 1:
-	// 	return func(d interface{}) api.Request {
-	// 		return &metadata.RequestV1{RequestV0: metadata.NewRequestV0(d.(*metadata.Request))}
-	// 	}, nil
-	// case 2:
-	// 	return func(d interface{}) api.Request {
-	// 		return &metadata.RequestV2{RequestV0: metadata.NewRequestV0(d.(*metadata.Request))}
-	// 	}, nil
-	// case 3:
-	// 	return func(d interface{}) api.Request {
-	// 		return &metadata.RequestV3{RequestV0: metadata.NewRequestV0(d.(*metadata.Request))}
-	// 	}, nil
-	// case 4:
-	// 	return func(d interface{}) api.Request {
-	// 		r := metadata.NewRequestV4(d.(*metadata.Request))
-	// 		return &r
-	// 	}, nil
-	// case 5:
-	// 	return func(d interface{}) api.Request {
-	// 		return &metadata.RequestV5{RequestV4: metadata.NewRequestV4(d.(*metadata.Request))}
-	// 	}, nil
-	// case 6:
-	// 	return func(d interface{}) api.Request {
-	// 		return &metadata.RequestV6{RequestV4: metadata.NewRequestV4(d.(*metadata.Request))}
-	// 	}, nil
-	// case 7:
-	// 	return func(d interface{}) api.Request {
-	// 		return &metadata.RequestV7{RequestV4: metadata.NewRequestV4(d.(*metadata.Request))}
-	// 	}, nil
-	// }
+	switch maxVersion {
+	case 0:
+		return func(d interface{}) api.Request {
+			r := metadata.NewRequestV0(d.(*metadata.Request))
+			return &r
+		}, nil
+	case 1:
+		return func(d interface{}) api.Request {
+			return &metadata.RequestV1{RequestV0: metadata.NewRequestV0(d.(*metadata.Request))}
+		}, nil
+	case 2:
+		return func(d interface{}) api.Request {
+			return &metadata.RequestV2{RequestV0: metadata.NewRequestV0(d.(*metadata.Request))}
+		}, nil
+	case 3:
+		return func(d interface{}) api.Request {
+			return &metadata.RequestV3{RequestV0: metadata.NewRequestV0(d.(*metadata.Request))}
+		}, nil
+	case 4:
+		return func(d interface{}) api.Request {
+			r := metadata.NewRequestV4(d.(*metadata.Request))
+			return &r
+		}, nil
+	case 5:
+		return func(d interface{}) api.Request {
+			return &metadata.RequestV5{RequestV4: metadata.NewRequestV4(d.(*metadata.Request))}
+		}, nil
+	case 6:
+		return func(d interface{}) api.Request {
+			return &metadata.RequestV6{RequestV4: metadata.NewRequestV4(d.(*metadata.Request))}
+		}, nil
+	case 7:
+		return func(d interface{}) api.Request {
+			return &metadata.RequestV7{RequestV4: metadata.NewRequestV4(d.(*metadata.Request))}
+		}, nil
+	}
 
-	// if minVersion <= 7 {
-	// 	return func(d interface{}) api.Request {
-	// 		return &metadata.RequestV7{RequestV4: metadata.NewRequestV4(d.(*metadata.Request))}
-	// 	}, nil
-	// }
+	if minVersion <= 7 {
+		return func(d interface{}) api.Request {
+			return &metadata.RequestV7{RequestV4: metadata.NewRequestV4(d.(*metadata.Request))}
+		}, nil
+	}
 
-	// return nil, NewClientUnsupportedAPIError(api.KeyMetadata, maxVersion)
+	return nil, NewClientUnsupportedAPIError(api.KeyMetadata, maxVersion)
 }

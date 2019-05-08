@@ -378,3 +378,9 @@ type Error struct {
 func (e *Error) Error() string {
 	return fmt.Sprintf("Kafka Error %v (%v): %v", kafkaErrors[e.Code], e.Code, errorsFriendly[e.Code])
 }
+
+// IsKafkaError returns whether or not the current error is a Kafka error, as opposed to an error communicating with Kafka.
+func IsKafkaError(err error) bool {
+	_, ok := err.(*Error)
+	return ok
+}

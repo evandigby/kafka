@@ -7,61 +7,69 @@ import (
 	"github.com/evandigby/kafka/enc"
 )
 
-// TopicResponseV0 represents topic  provided in a response
-type TopicResponseV0 struct {
-	Error     error
-	Topic     string
-	Partition []PartitionResponseV0
+// TopicResponse is used to examine the topic response from any API version
+type TopicResponse interface {
+	Error() error
+	Topic() string
+	Partitions() []PartitionResponse
 }
 
-func (t *TopicResponseV0) Read(r io.Reader) (err error) {
-	t.Error = kafkaerror.FromReader(r)
-	if t.Error != nil {
-		if _, ok := t.Error.(*kafkaerror.Error); !ok {
-			return err
-		}
+// TopicResponseV0 represents topic  provided in a response
+type TopicResponseV0 struct {
+	err        error
+	topic      string
+	partitions []PartitionResponse
+}
+
+// Error returns the Error for the response
+func (t *TopicResponseV0) Error() error { return t.err }
+
+// Topic returns the Topic for the response
+func (t *TopicResponseV0) Topic() string { return t.topic }
+
+// Partitions returns the Partitions for the response
+func (t *TopicResponseV0) Partitions() []PartitionResponse { return t.partitions }
+
+func (t *TopicResponseV0) Read(r io.Reader, v int16) error {
+	t.err = kafkaerror.FromReader(r)
+	if t.err != nil && !kafkaerror.IsKafkaError(t.err) {
+		return t.err
 	}
 
-	t.Topic, err = enc.ReadString(r)
+	var err error
+
+	t.topic, err = enc.ReadString(r)
 	if err != nil {
 		return err
 	}
 
-	partArrLen, err := enc.ReadInt32(r)
+	t.partitions, err = readPartitions(r, v)
 	if err != nil {
 		return err
-	}
-
-	t.Partition = make([]PartitionResponseV0, int(partArrLen))
-	for j := 0; j < int(partArrLen); j++ {
-		err = t.Partition[j].Read(r)
-		if err != nil {
-			return err
-		}
 	}
 
 	return nil
 }
 
-// TopicResponseV1 represents topic  provided in a response
-type TopicResponseV1 struct {
-	TopicResponseV0
+func readTopics(r io.Reader, v int16) ([]TopicResponse, error) {
+	switch v {
+	case 0, 1, 2, 3, 4, 5, 6, 7:
+		return readTopicsV0(r, v)
+	default:
+		panic("shouldn't happen")
+	}
 }
 
-// TopicResponseV2 represents topic  provided in a response
-type TopicResponseV2 struct{ TopicResponseV0 }
+func readTopicsV0(r io.Reader, v int16) ([]TopicResponse, error) {
+	var topics []TopicResponse
 
-// TopicResponseV3 represents topic  provided in a response
-type TopicResponseV3 struct{ TopicResponseV0 }
-
-// TopicResponseV4 represents topic  provided in a response
-type TopicResponseV4 struct{ TopicResponseV0 }
-
-// TopicResponseV5 represents topic  provided in a response
-type TopicResponseV5 struct{ TopicResponseV0 }
-
-// TopicResponseV6 represents topic  provided in a response
-type TopicResponseV6 struct{ TopicResponseV0 }
-
-// TopicResponseV7 represents topic  provided in a response
-type TopicResponseV7 struct{ TopicResponseV0 }
+	err := enc.Array(r, v,
+		func(l int) { topics = make([]TopicResponse, l) },
+		func(i int) enc.ElementReader {
+			val := &TopicResponseV0{}
+			topics[i] = val
+			return val
+		},
+	)
+	return topics, err
+}

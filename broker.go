@@ -46,8 +46,8 @@ func NewBroker(addr string, c BrokerConfig) (*Broker, error) {
 		sentRequests:    make(chan sentRequest, c.RequestQueueSize),
 		close:           make(chan struct{}),
 		readClosed:      make(chan struct{}),
-		onResponse:      c.OnResponse,
-		onResponseError: c.OnResponseError,
+		onResponse:      c.Response.OnResponse,
+		onResponseError: c.Response.OnResponseError,
 	}
 
 	err = broker.readAPISupport()
@@ -193,7 +193,7 @@ func (b *Broker) readResponses() {
 		}
 
 		if cid != correlatedRequest.CorrelationID {
-			b.onResponseError(NewUncorrelatedResponseError(cid, correlatedRequest.CorrelationID))
+			b.onResponseError(newUncorrelatedResponseError(cid, correlatedRequest.CorrelationID))
 			continue
 		}
 
@@ -245,7 +245,7 @@ func (b *Broker) shipResponse(request sentRequest, resp *byteBuffer) error {
 
 	switch request.Request.APIKey() {
 	case api.KeyMetadata:
-		responseValue, err = metadata.ReadResponse(request.Request.Version(), resp)
+		responseValue, err = metadata.ReadResponse(resp, request.Request.Version())
 	default:
 		return versions.NewClientUnsupportedAPIError(request.Request.APIKey(), request.Request.Version())
 	}
@@ -271,7 +271,7 @@ func (b *Broker) readAPISupport() error {
 	}
 
 	if cid != apiCID {
-		return NewUncorrelatedResponseError(apiCID, cid)
+		return newUncorrelatedResponseError(apiCID, cid)
 	}
 
 	versionResp, err := versions.ReadV1Response(resp)
@@ -303,7 +303,7 @@ func (b *Broker) saslAuth(c SASLConfig) error {
 	}
 
 	if cid != authCID {
-		return NewUncorrelatedResponseError(authCID, cid)
+		return newUncorrelatedResponseError(authCID, cid)
 	}
 
 	_, err = sasl.ReadHandshakeResponseV0(resp)
@@ -355,7 +355,7 @@ func (e *UncorrelatedResponseError) Error() string {
 	return fmt.Sprintf("expected %v but got %v for correlation ID", e.ExpectedCID, e.ActualCID)
 }
 
-func NewUncorrelatedResponseError(expected, actual int32) error {
+func newUncorrelatedResponseError(expected, actual int32) error {
 	return &UncorrelatedResponseError{
 		ExpectedCID: expected,
 		ActualCID:   actual,

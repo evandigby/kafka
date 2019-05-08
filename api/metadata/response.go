@@ -7,262 +7,188 @@ import (
 	"github.com/evandigby/kafka/enc"
 )
 
+// Response is used to examine a metadata response by any API version
+type Response interface {
+	ThrottleTime() time.Duration
+	ThrottleTimeSupported() bool
+	Brokers() []BrokerResponse
+	ClusterID() *string
+	ClusterIDSupported() bool
+	ControllerID() int32
+	ControllerIDSupported() bool
+	Topics() []TopicResponse
+}
+
 // ResponseV0 V0  response
 type ResponseV0 struct {
-	Brokers []BrokerResponseV0
-	Topic   []TopicResponseV0
+	brokers []BrokerResponse
+	topics  []TopicResponse
 }
+
+// ThrottleTime returns the Throttle Time for the response
+func (r *ResponseV0) ThrottleTime() time.Duration { return 0 }
+
+// ThrottleTimeSupported returns whether or not ThrottleTime is supported in this version
+func (r *ResponseV0) ThrottleTimeSupported() bool { return false }
+
+// Brokers returns the Brokers for the response
+func (r *ResponseV0) Brokers() []BrokerResponse { return r.brokers }
+
+// ClusterID returns the ClusterID for the response
+func (r *ResponseV0) ClusterID() *string { return nil }
+
+// ClusterIDSupported returns whether or not ClusterID is supported in this version
+func (r *ResponseV0) ClusterIDSupported() bool { return false }
+
+// ControllerID returns the ControllerID for the response
+func (r *ResponseV0) ControllerID() int32 { return 0 }
+
+// ControllerIDSupported returns whether or not ControllerID is supported in this version
+func (r *ResponseV0) ControllerIDSupported() bool { return false }
+
+// Topics returns the Topics for the response
+func (r *ResponseV0) Topics() []TopicResponse { return r.topics }
 
 // ResponseV1 V1  response
 type ResponseV1 struct {
-	Brokers      []BrokerResponseV1
-	ControllerID int32
-	Topic        []TopicResponseV1
+	ResponseV0
+	controllerID int32
 }
+
+// ControllerID returns the ControllerID for the response
+func (r *ResponseV1) ControllerID() int32 { return r.controllerID }
+
+// ControllerIDSupported returns whether or not ControllerID is supported in this version
+func (r *ResponseV1) ControllerIDSupported() bool { return true }
 
 // ResponseV2 V2  response
 type ResponseV2 struct {
-	Brokers      []BrokerResponseV2
-	ClusterID    *string
-	ControllerID int32
-	Topic        []TopicResponseV2
+	ResponseV1
+	clusterID *string
 }
 
-// ResponseV5 V5  response
-type ResponseV5 struct {
-	ThrottleTime time.Duration
-	Brokers      []BrokerResponseV1
-	ClusterID    *string
-	ControllerID int32
-	Topic        []TopicResponseV1
+// ClusterID returns the ClusterID for the response
+func (r *ResponseV2) ClusterID() *string { return r.clusterID }
+
+// ClusterIDSupported returns whether or not ClusterID is supported in this version
+func (r *ResponseV2) ClusterIDSupported() bool { return true }
+
+// ResponseV3 V3  response
+type ResponseV3 struct {
+	throttleTime time.Duration
+	ResponseV2
 }
 
-// ResponseV7 V7  response
-type ResponseV7 struct {
-	ResponseV5
-}
+// ThrottleTime returns the Throttle Time for the response
+func (r *ResponseV3) ThrottleTime() time.Duration { return r.throttleTime }
 
-func ReadResponse(v int16, r io.Reader) (interface{}, error) {
+// ThrottleTimeSupported returns whether or not ThrottleTime is supported in this version
+func (r *ResponseV3) ThrottleTimeSupported() bool { return true }
+
+// ReadResponse reads the correct metadata response for the specified version
+func ReadResponse(r io.Reader, v int16) (Response, error) {
 	switch v {
 	case 0:
-		return readResponseV0(r)
+		return readResponseV0(r, v)
 	case 1:
-		return readResponseV1(r)
-	// case 5:
-	// 	return readResponseV5(r)
-	// case 7:
-	// 	v5, err := readResponseV5(r)
-	// 	if err != nil {
-	// 		return nil, err
-	// 	}
-	// 	return ResponseV7{ResponseV5: *v5}, nil
+		return readResponseV1(r, v)
+	case 2:
+		return readResponseV2(r, v)
+	case 3, 4, 5, 6, 7:
+		return readResponseV3(r, v)
 	default:
 		panic("shouldn't happen")
 	}
 }
 
-func readResponseV0(r io.Reader) (*ResponseV0, error) {
-	var resp ResponseV0
+func readResponseV0(r io.Reader, v int16) (*ResponseV0, error) {
+	var (
+		resp ResponseV0
+		err  error
+	)
 
-	arrLen, err := enc.ReadInt32(r)
+	resp.brokers, err = readBrokers(r, 0)
 	if err != nil {
 		return nil, err
 	}
 
-	resp.Brokers = make([]BrokerResponseV0, int(arrLen))
-	for i := 0; i < int(arrLen); i++ {
-		err = resp.Brokers[i].Read(r)
-		if err != nil {
-			return nil, err
-		}
-	}
-
-	arrLen, err = enc.ReadInt32(r)
+	resp.topics, err = readTopics(r, v)
 	if err != nil {
 		return nil, err
-	}
-
-	resp.Topic = make([]TopicResponseV0, int(arrLen))
-	for i := 0; i < int(arrLen); i++ {
-		err = resp.Topic[i].Read(r)
-		if err != nil {
-			return nil, err
-		}
 	}
 
 	return &resp, nil
 }
 
-func readResponseV1(r io.Reader) (*ResponseV1, error) {
-	var resp ResponseV1
+func readResponseV1(r io.Reader, v int16) (*ResponseV1, error) {
+	var (
+		resp ResponseV1
+		err  error
+	)
 
-	arrLen, err := enc.ReadInt32(r)
+	resp.brokers, err = readBrokers(r, 1)
 	if err != nil {
 		return nil, err
 	}
 
-	resp.Brokers = make([]BrokerResponseV1, int(arrLen))
-	for i := 0; i < int(arrLen); i++ {
-		err = resp.Brokers[i].Read(r)
-		if err != nil {
-			return nil, err
-		}
-	}
-
-	resp.ControllerID, err = enc.ReadInt32(r)
+	resp.controllerID, err = enc.ReadInt32(r)
 	if err != nil {
 		return nil, err
 	}
 
-	arrLen, err = enc.ReadInt32(r)
+	resp.topics, err = readTopics(r, v)
 	if err != nil {
 		return nil, err
-	}
-
-	resp.Topic = make([]TopicResponseV1, int(arrLen))
-	for i := 0; i < int(arrLen); i++ {
-		err = resp.Topic[i].Read(r)
-		if err != nil {
-			return nil, err
-		}
 	}
 
 	return &resp, nil
 }
 
-// func readResponseV5(r io.Reader) (*ResponseV5, error) {
-// 	var resp ResponseV5
+func readResponseV2(r io.Reader, v int16) (*ResponseV2, error) {
+	var (
+		resp ResponseV2
+		err  error
+	)
 
-// 	throttleTime, err := enc.ReadInt32(r)
-// 	if err != nil {
-// 		return nil, err
-// 	}
+	resp.brokers, err = readBrokers(r, 1)
+	if err != nil {
+		return nil, err
+	}
 
-// 	resp.ThrottleTime = time.Duration(throttleTime) * time.Millisecond
+	resp.clusterID, err = enc.ReadNullableString(r)
+	if err != nil {
+		return nil, err
+	}
 
-// 	arrLen, err := enc.ReadInt32(r)
-// 	if err != nil {
-// 		return nil, err
-// 	}
+	resp.controllerID, err = enc.ReadInt32(r)
+	if err != nil {
+		return nil, err
+	}
 
-// 	resp.Brokers = make([]BrokerResponse, int(arrLen))
-// 	for i := 0; i < int(arrLen); i++ {
-// 		resp.Brokers[i].NodeID, err = enc.ReadInt32(r)
-// 		if err != nil {
-// 			return nil, err
-// 		}
+	resp.topics, err = readTopics(r, v)
+	if err != nil {
+		return nil, err
+	}
 
-// 		resp.Brokers[i].Host, err = readString(r)
-// 		if err != nil {
-// 			return nil, err
-// 		}
+	return &resp, nil
+}
 
-// 		resp.Brokers[i].Port, err = enc.ReadInt32(r)
-// 		if err != nil {
-// 			return nil, err
-// 		}
+func readResponseV3(r io.Reader, v int16) (*ResponseV3, error) {
+	var (
+		resp ResponseV3
+		err  error
+	)
 
-// 		resp.Brokers[i].Rack, err = readNullableString(r)
-// 		if err != nil {
-// 			return nil, err
-// 		}
-// 	}
+	resp.throttleTime, err = enc.ReadDuration(r)
+	if err != nil {
+		return nil, err
+	}
 
-// 	resp.ClusterID, err = readNullableString(r)
-// 	if err != nil {
-// 		return nil, err
-// 	}
+	v2, err := readResponseV2(r, v)
+	if err != nil {
+		return nil, err
+	}
 
-// 	resp.ControllerID, err = enc.ReadInt32(r)
-// 	if err != nil {
-// 		return nil, err
-// 	}
-
-// 	arrLen, err = enc.ReadInt32(r)
-// 	if err != nil {
-// 		return nil, err
-// 	}
-
-// 	resp.Topic = make([]TopicResponse, int(arrLen))
-// 	for i := 0; i < int(arrLen); i++ {
-// 		t.Error = ErrorFromReader(r)
-// 		if t.Error != nil {
-// 			if _, ok := t.Error.(*Error); !ok {
-// 				return nil, err
-// 			}
-// 		}
-
-// 		t.Topic, err = readString(r)
-// 		if err != nil {
-// 			return nil, err
-// 		}
-
-// 		t.IsInternal, err = readBool(r)
-// 		if err != nil {
-// 			return nil, err
-// 		}
-
-// 		partArrLen, err := enc.ReadInt32(r)
-// 		if err != nil {
-// 			return nil, err
-// 		}
-
-// 		t.Partition = make([]PartitionResponse, int(partArrLen))
-// 		for j := 0; j < int(partArrLen); j++ {
-// 			p.Error = ErrorFromReader(r)
-// 			if p.Error != nil {
-// 				if _, ok := p.Error.(*Error); !ok {
-// 					return nil, err
-// 				}
-// 			}
-
-// 			p.Partition, err = enc.ReadInt32(r)
-// 			if err != nil {
-// 				return nil, err
-// 			}
-
-// 			p.Leader, err = enc.ReadInt32(r)
-// 			if err != nil {
-// 				return nil, err
-// 			}
-
-// 			repArrLen, err := enc.ReadInt32(r)
-// 			if err != nil {
-// 				return nil, err
-// 			}
-// 			p.Replicas = make([]int32, int(repArrLen))
-// 			for x := 0; x < int(repArrLen); x++ {
-// 				p.Replicas[x], err = enc.ReadInt32(r)
-// 				if err != nil {
-// 					return nil, err
-// 				}
-// 			}
-
-// 			isrArrLen, err := enc.ReadInt32(r)
-// 			if err != nil {
-// 				return nil, err
-// 			}
-// 			p.ISR = make([]int32, int(isrArrLen))
-// 			for x := 0; x < int(isrArrLen); x++ {
-// 				p.ISR[x], err = enc.ReadInt32(r)
-// 				if err != nil {
-// 					return nil, err
-// 				}
-// 			}
-
-// 			orArrLen, err := enc.ReadInt32(r)
-// 			if err != nil {
-// 				return nil, err
-// 			}
-// 			p.OfflineReplicas = make([]int32, int(orArrLen))
-// 			for x := 0; x < int(orArrLen); x++ {
-// 				p.OfflineReplicas[x], err = enc.ReadInt32(r)
-// 				if err != nil {
-// 					return nil, err
-// 				}
-// 			}
-// 		}
-// 	}
-
-// 	return &resp, nil
-// }
+	resp.ResponseV2 = *v2
+	return &resp, nil
+}
