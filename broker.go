@@ -15,12 +15,13 @@ import (
 	"github.com/evandigby/kafka/api/metadata"
 	"github.com/evandigby/kafka/api/sasl"
 	"github.com/evandigby/kafka/api/versions"
-	"github.com/evandigby/kafka/enc"
+	"github.com/evandigby/kafka/api/enc"
 )
 
 // Errors returned by broker
 var (
-	ErrBrokerClosed = errors.New("broker closed")
+	ErrBrokerClosed         = errors.New("broker closed")
+	ErrUncorrelatedResponse = errors.New("uncorrelated response")
 )
 
 const (
@@ -193,7 +194,7 @@ func (b *Broker) readResponses() {
 		}
 
 		if cid != correlatedRequest.CorrelationID {
-			b.onResponseError(newUncorrelatedResponseError(cid, correlatedRequest.CorrelationID))
+			b.onResponseError(fmt.Errorf("reading response: %w", ErrUncorrelatedResponse))
 			continue
 		}
 
@@ -247,7 +248,7 @@ func (b *Broker) shipResponse(request sentRequest, resp *byteBuffer) error {
 	case api.KeyMetadata:
 		responseValue, err = metadata.ReadResponse(resp, request.Request.Version())
 	default:
-		return versions.NewClientUnsupportedAPIError(request.Request.APIKey(), request.Request.Version())
+		return fmt.Errorf("%v: %w", request.Request.APIKey(), versions.ErrorUnsupportedAPI)
 	}
 
 	if err != nil {
@@ -271,7 +272,7 @@ func (b *Broker) readAPISupport() error {
 	}
 
 	if cid != apiCID {
-		return newUncorrelatedResponseError(apiCID, cid)
+		return fmt.Errorf("read api support: %w", ErrUncorrelatedResponse)
 	}
 
 	versionResp, err := versions.ReadV1Response(resp)
@@ -292,7 +293,7 @@ func (b *Broker) saslAuth(c SASLConfig) error {
 	}
 
 	if !b.Versions.IsSupported(api.KeySaslHandshake, 0) {
-		return versions.NewServerUnsupportedAPIError(api.KeySaslHandshake, b.Versions[api.KeySaslHandshake])
+		return fmt.Errorf("ssl auth: %v: %w", api.KeySaslHandshake, versions.ErrorUnsupportedAPI)
 	}
 
 	handshakeRequest := sasl.NewHandshakeRequestV0(plainMechanism)
@@ -303,7 +304,7 @@ func (b *Broker) saslAuth(c SASLConfig) error {
 	}
 
 	if cid != authCID {
-		return newUncorrelatedResponseError(authCID, cid)
+		return fmt.Errorf("sasl auth handshake: %w", ErrUncorrelatedResponse)
 	}
 
 	_, err = sasl.ReadHandshakeResponseV0(resp)
@@ -337,27 +338,4 @@ func (b *Broker) RequestMetadata(ctx context.Context, topics []string, allowAuto
 	}
 
 	return b.SendRequest(ctx, r)
-}
-
-// IsUncorrelatedResponseError returns whether or not this error is an unsupported version error
-func IsUncorrelatedResponseError(err error) bool {
-	_, ok := err.(*UncorrelatedResponseError)
-	return ok
-}
-
-// UncorrelatedResponseError is returned when you attempt to use an API or API version that isn't supported by the server
-type UncorrelatedResponseError struct {
-	ExpectedCID int32
-	ActualCID   int32
-}
-
-func (e *UncorrelatedResponseError) Error() string {
-	return fmt.Sprintf("expected %v but got %v for correlation ID", e.ExpectedCID, e.ActualCID)
-}
-
-func newUncorrelatedResponseError(expected, actual int32) error {
-	return &UncorrelatedResponseError{
-		ExpectedCID: expected,
-		ActualCID:   actual,
-	}
 }

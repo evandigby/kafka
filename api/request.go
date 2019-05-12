@@ -4,7 +4,7 @@ import (
 	"encoding/binary"
 	"io"
 
-	"github.com/evandigby/kafka/enc"
+	"github.com/evandigby/kafka/api/enc"
 )
 
 type RequestFactory func(d interface{}) Request

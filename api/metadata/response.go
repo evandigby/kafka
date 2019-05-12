@@ -4,7 +4,7 @@ import (
 	"io"
 	"time"
 
-	"github.com/evandigby/kafka/enc"
+	"github.com/evandigby/kafka/api/enc"
 )
 
 // Response is used to examine a metadata response by any API version

@@ -3,8 +3,8 @@ package metadata
 import (
 	"io"
 
-	"github.com/evandigby/kafka/api/kafkaerror"
-	"github.com/evandigby/kafka/enc"
+	"github.com/evandigby/kafka/api"
+	"github.com/evandigby/kafka/api/enc"
 )
 
 // TopicResponse is used to examine the topic response from any API version
@@ -31,8 +31,8 @@ func (t *TopicResponseV0) Topic() string { return t.topic }
 func (t *TopicResponseV0) Partitions() []PartitionResponse { return t.partitions }
 
 func (t *TopicResponseV0) Read(r io.Reader, v int16) error {
-	t.err = kafkaerror.FromReader(r)
-	if t.err != nil && !kafkaerror.IsKafkaError(t.err) {
+	t.err = api.ErrorFromReader(r)
+	if t.err != nil && !api.IsKafkaError(t.err) {
 		return t.err
 	}
 

@@ -1,4 +1,4 @@
-package kafkaerror
+package api
 
 import (
 	"encoding/binary"
@@ -351,13 +351,8 @@ var retriable = map[int16]bool{
 	ErrorGroupMaxSizeReached:                false,
 }
 
-// New creates a new error from a kafka error code
-func New(code int16) error {
-	return &Error{Code: code}
-}
-
-// FromReader creates an error from a reader by reading a 16 bit (2 bytes) value from the reader. It returns nil when "no error" is received to keep with Go semantics.
-func FromReader(r io.Reader) error {
+// ErrorFromReader creates an error from a reader by reading a 16 bit (2 bytes) value from the reader. It returns nil when "no error" is received to keep with Go semantics.
+func ErrorFromReader(r io.Reader) error {
 	var kerr Error
 	err := binary.Read(r, binary.BigEndian, &kerr.Code)
 	if err != nil {

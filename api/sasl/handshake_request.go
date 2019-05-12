@@ -4,8 +4,7 @@ import (
 	"io"
 
 	"github.com/evandigby/kafka/api"
-	"github.com/evandigby/kafka/api/kafkaerror"
-	"github.com/evandigby/kafka/enc"
+	"github.com/evandigby/kafka/api/enc"
 )
 
 // HandshakeRequestV0 is a V0 sasl handshake request
@@ -39,7 +38,7 @@ type HandshakeV0Response struct {
 }
 
 func ReadHandshakeResponseV0(r io.Reader) (*HandshakeV0Response, error) {
-	err := kafkaerror.FromReader(r)
+	err := api.ErrorFromReader(r)
 	if err != nil {
 		return nil, err
 	}

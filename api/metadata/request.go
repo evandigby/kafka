@@ -4,7 +4,7 @@ import (
 	"io"
 
 	"github.com/evandigby/kafka/api"
-	"github.com/evandigby/kafka/enc"
+	"github.com/evandigby/kafka/api/enc"
 )
 
 // Request is a metadata request

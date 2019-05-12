@@ -3,7 +3,7 @@ package metadata
 import (
 	"io"
 
-	"github.com/evandigby/kafka/enc"
+	"github.com/evandigby/kafka/api/enc"
 )
 
 // BrokerResponse is used to examine the broker response from any API version

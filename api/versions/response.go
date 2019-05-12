@@ -6,8 +6,7 @@ import (
 	"time"
 
 	"github.com/evandigby/kafka/api"
-	"github.com/evandigby/kafka/api/kafkaerror"
-	"github.com/evandigby/kafka/enc"
+	"github.com/evandigby/kafka/api/enc"
 )
 
 // Supported represents a set of supported API versions
@@ -17,7 +16,7 @@ type Supported map[api.Key]*Version
 func (versions Supported) Versions(key api.Key) (int16, int16, error) {
 	v, ok := versions[key]
 	if !ok {
-		return -1, -1, NewServerUnsupportedAPIError(key, nil)
+		return -1, -1, fmt.Errorf("%v: %w", api.KeyMetadata, ErrorUnsupportedAPI)
 	}
 
 	return v.MinVersion, v.MaxVersion, nil
@@ -57,11 +56,9 @@ func ReadV1Response(r io.Reader) (*V1Response, error) {
 		Versions: Supported{},
 	}
 
-	resp.Error = kafkaerror.FromReader(r)
-	if resp.Error != nil {
-		if _, ok := resp.Error.(*kafkaerror.Error); !ok {
-			return nil, resp.Error
-		}
+	resp.Error = api.ErrorFromReader(r)
+	if resp.Error != nil && !api.IsKafkaError(resp.Error) {
+		return nil, resp.Error
 	}
 
 	arrLen, err := enc.ReadInt32(r)
@@ -100,57 +97,4 @@ func ReadV1Response(r io.Reader) (*V1Response, error) {
 
 	resp.ThrottleTime = time.Duration(throttleTime) * time.Millisecond
 	return &resp, nil
-}
-
-func NewServerUnsupportedAPIError(key api.Key, supportedVersions *Version) error {
-	return &ServerUnsupportedAPIError{
-		API:               key,
-		SupportedVersions: supportedVersions,
-	}
-}
-
-// IsServerUnsupportedVersionError returns whether or not this error is an unsupported version error
-func IsServerUnsupportedVersionError(err error) bool {
-	_, ok := err.(*ServerUnsupportedAPIError)
-	return ok
-}
-
-// ServerUnsupportedAPIError is returned when you attempt to use an API or API version that isn't supported by the server
-type ServerUnsupportedAPIError struct {
-	API               api.Key
-	SupportedVersions *Version
-}
-
-func (e *ServerUnsupportedAPIError) Error() string {
-	if e.SupportedVersions == nil {
-		return fmt.Sprintf("server unsupported API %q:", e.API)
-	}
-
-	return fmt.Sprintf("server unsupported API version for %q. Supported versions are Min: %v, Max: %v", e.API, e.SupportedVersions.MinVersion, e.SupportedVersions.MaxVersion)
-}
-
-func NewClientUnsupportedAPIError(key api.Key, v int16) error {
-	return &ClientUnsupportedAPIError{
-		API:     key,
-		Version: v,
-	}
-}
-
-// IsClientUnsupportedVersionError returns whether or not this error is an unsupported version error
-func IsClientUnsupportedVersionError(err error) bool {
-	_, ok := err.(*ClientUnsupportedAPIError)
-	return ok
-}
-
-// ClientUnsupportedAPIError is returned when you attempt to use an API or API version that isn't supported by the server
-type ClientUnsupportedAPIError struct {
-	API     api.Key
-	Version int16
-}
-
-func (e *ClientUnsupportedAPIError) Error() string {
-	if e.Version < 0 {
-		return fmt.Sprintf("client unsupported API %q", e.API)
-	}
-	return fmt.Sprintf("client unsupported API Version for %q: %v", e.API, e.Version)
 }

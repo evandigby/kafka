@@ -1,19 +1,25 @@
 package versions
 
 import (
+	"errors"
+	"fmt"
+
 	"github.com/evandigby/kafka/api"
 	"github.com/evandigby/kafka/api/metadata"
 )
+
+// ErrorUnsupportedAPI is returned whenever you attempt to use an unsupported API version
+var ErrorUnsupportedAPI = errors.New("unsupported API")
 
 // Request returns a request for the maximum supported version of the API Key
 func (versions Supported) Request(key api.Key, d interface{}) (api.Request, error) {
 	v, ok := versions[key]
 	if !ok {
-		return nil, NewClientUnsupportedAPIError(key, -1)
+		return nil, fmt.Errorf("%v: %w", key, ErrorUnsupportedAPI)
 	}
 
 	if v.NewRequest == nil {
-		return nil, NewClientUnsupportedAPIError(key, -1)
+		return nil, fmt.Errorf("%v: %w", key, ErrorUnsupportedAPI)
 	}
 	return v.NewRequest(d), nil
 }
@@ -24,7 +30,7 @@ func newRequestFactory(apiKey api.Key, minVersion, maxVersion int16) (api.Reques
 		return newMetadataRequestForVersion(minVersion, maxVersion)
 	}
 
-	return nil, nil // kafkaerrors.NewClientUnsupportedAPIError(apiKey, maxVersion)
+	return nil, fmt.Errorf("%v: %w", apiKey, ErrorUnsupportedAPI)
 }
 
 func newMetadataRequestForVersion(minVersion, maxVersion int16) (api.RequestFactory, error) {
@@ -71,5 +77,5 @@ func newMetadataRequestForVersion(minVersion, maxVersion int16) (api.RequestFact
 		}, nil
 	}
 
-	return nil, NewClientUnsupportedAPIError(api.KeyMetadata, maxVersion)
+	return nil, fmt.Errorf("metadata request for version range: %v to %v: %w", minVersion, maxVersion, ErrorUnsupportedAPI)
 }

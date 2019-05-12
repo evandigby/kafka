@@ -3,8 +3,8 @@ package metadata
 import (
 	"io"
 
-	"github.com/evandigby/kafka/api/kafkaerror"
-	"github.com/evandigby/kafka/enc"
+	"github.com/evandigby/kafka/api"
+	"github.com/evandigby/kafka/api/enc"
 )
 
 // PartitionResponse is used to examine the partition response from any API version
@@ -58,8 +58,8 @@ func (p *PartitionResponseV0) IsOfflineReplicasSupported() bool { return false }
 
 // Read reads the partition response from the reader
 func (p *PartitionResponseV0) Read(r io.Reader, v int16) error {
-	p.err = kafkaerror.FromReader(r)
-	if p.err != nil && !kafkaerror.IsKafkaError(p.err) {
+	p.err = api.ErrorFromReader(r)
+	if p.err != nil && !api.IsKafkaError(p.err) {
 		return p.err
 	}
 
@@ -128,8 +128,8 @@ func (p *PartitionResponseV7) IsLeaderEpochSupported() bool { return true }
 
 // Read reads the partition response from the reader
 func (p *PartitionResponseV7) Read(r io.Reader, v int16) error {
-	p.err = kafkaerror.FromReader(r)
-	if p.err != nil && !kafkaerror.IsKafkaError(p.err) {
+	p.err = api.ErrorFromReader(r)
+	if p.err != nil && !api.IsKafkaError(p.err) {
 		return p.err
 	}
 
