@@ -47,7 +47,7 @@ type BrokerConfig struct {
 	Response         ResponseConfig
 }
 
-func defaultResposneConfig(c ResponseConfig) ResponseConfig {
+func defaultResponseConfig(c ResponseConfig) ResponseConfig {
 	onResp := c.OnResponse
 	if onResp == nil {
 		onResp = func(key api.Key, version int16, resp interface{}) {}
@@ -68,8 +68,8 @@ func defaultResposneConfig(c ResponseConfig) ResponseConfig {
 	return c
 }
 
-func configDefaults(c BrokerConfig) BrokerConfig {
-	c.Response = defaultResposneConfig(c.Response)
+func brokerConfigDefaults(c BrokerConfig) BrokerConfig {
+	c.Response = defaultResponseConfig(c.Response)
 
 	if c.RequestQueueSize < 0 {
 		c.RequestQueueSize = 0

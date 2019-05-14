@@ -1,7 +1,7 @@
 package main
 
 import (
-	"encoding/json"
+	"context"
 	"fmt"
 	"os"
 
@@ -13,10 +13,7 @@ func main() {
 	userName := os.Getenv("KAFKA_USERNAME")
 	password := os.Getenv("KAFKA_PASSWORD")
 
-	enc := json.NewEncoder(os.Stdout)
-	enc.SetIndent("", "   ")
-
-	cluster, err := kafka.NewCluster([]string{host}, kafka.ClusterConfig{
+	cluster, err := kafka.NewCluster(context.Background(), []string{host}, kafka.ClusterConfig{
 		ClientID: "testClient",
 		SASL: kafka.SASLConfig{
 			Enabled:  true,
@@ -24,6 +21,11 @@ func main() {
 			Plain: kafka.SASLPlainConfig{
 				UserName: userName,
 				Password: password,
+			},
+		},
+		Events: kafka.ClusterEvents{
+			OnBootstrapError: func(err error, server string, attempts int) {
+				fmt.Printf("Error connecting to %q (%d attempts): %v\n", server, attempts, err)
 			},
 		},
 	})

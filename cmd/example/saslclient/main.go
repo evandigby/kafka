@@ -23,7 +23,7 @@ func main() {
 
 	received := make(chan struct{})
 
-	broker, err := kafka.NewBroker(host, kafka.BrokerConfig{
+	broker, err := kafka.NewBroker(context.Background(), host, kafka.BrokerConfig{
 		ClientID: "testClient",
 		SASL: kafka.SASLConfig{
 			Enabled:  true,

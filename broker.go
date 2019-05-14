@@ -12,10 +12,10 @@ import (
 	"time"
 
 	"github.com/evandigby/kafka/api"
+	"github.com/evandigby/kafka/api/enc"
 	"github.com/evandigby/kafka/api/metadata"
 	"github.com/evandigby/kafka/api/sasl"
 	"github.com/evandigby/kafka/api/versions"
-	"github.com/evandigby/kafka/api/enc"
 )
 
 // Errors returned by broker
@@ -30,10 +30,16 @@ const (
 )
 
 // NewBroker connects to a new Kafka broker.
-func NewBroker(addr string, c BrokerConfig) (*Broker, error) {
-	c = configDefaults(c)
+func NewBroker(ctx context.Context, addr string, c BrokerConfig) (*Broker, error) {
+	c = brokerConfigDefaults(c)
 
-	conn, err := tls.Dial("tcp", addr, nil)
+	dialer := &net.Dialer{}
+
+	if dl, ok := ctx.Deadline(); ok {
+		dialer.Deadline = dl
+	}
+
+	conn, err := tls.DialWithDialer(dialer, "tcp", addr, nil)
 	if err != nil {
 		return nil, err
 	}
