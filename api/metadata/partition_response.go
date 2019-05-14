@@ -211,7 +211,6 @@ func readPartitionsV5(r io.Reader, v int16) ([]PartitionResponse, error) {
 
 func readPartitionsV7(r io.Reader, v int16) ([]PartitionResponse, error) {
 	var partitions []PartitionResponse
-
 	err := enc.Array(r, v,
 		func(l int) { partitions = make([]PartitionResponse, l) },
 		func(i int) enc.ElementReader {

@@ -34,7 +34,7 @@ func (r *RequestV0) Size() int32 {
 }
 
 func (r *RequestV0) Write(w io.Writer) error {
-	return enc.WriteStringArray(w, r.topics)
+	return enc.WriteNullableStringArray(w, r.topics)
 }
 
 // RequestV4 is a metadata request

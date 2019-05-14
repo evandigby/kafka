@@ -30,7 +30,7 @@ func newRequestFactory(apiKey api.Key, minVersion, maxVersion int16) (api.Reques
 		return newMetadataRequestForVersion(minVersion, maxVersion)
 	}
 
-	return nil, fmt.Errorf("%v: %w", apiKey, ErrorUnsupportedAPI)
+	return nil, nil // fmt.Errorf("%v: %w", apiKey, ErrorUnsupportedAPI)
 }
 
 func newMetadataRequestForVersion(minVersion, maxVersion int16) (api.RequestFactory, error) {

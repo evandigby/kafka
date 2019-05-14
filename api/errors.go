@@ -379,3 +379,13 @@ func IsKafkaError(err error) bool {
 	_, ok := err.(*Error)
 	return ok
 }
+
+// IsKafkaCode compares code to the current kafka error code. If it's not a kafka error it will return false
+func IsKafkaCode(err error, code int16) bool {
+	ke, ok := err.(*Error)
+	if !ok {
+		return false
+	}
+
+	return ke.Code == code
+}
